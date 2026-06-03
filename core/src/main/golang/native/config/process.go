@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/dlclark/regexp2"
@@ -21,6 +22,7 @@ var processors = []processor{
 	patchOverride,
 	patchGeneral,
 	patchProfile,
+	patchProxyGroups,
 	patchDns,
 	patchTun,
 	patchListeners,
@@ -63,6 +65,95 @@ func patchProfile(cfg *config.RawConfig, _ string) error {
 	cfg.Profile.StoreFakeIP = true
 
 	return nil
+}
+
+func patchProxyGroups(cfg *config.RawConfig, _ string) error {
+	proxyNames := collectStreamingJPSG(cfg.Proxy)
+	jpSorted := sortDirectFirst(proxyNames.jp)
+	sgSorted := sortDirectFirst(proxyNames.sg)
+
+	for i := range cfg.ProxyGroup {
+		name, _ := cfg.ProxyGroup[i]["name"].(string)
+		switch name {
+		case "自动选择":
+			cfg.ProxyGroup[i]["proxies"] = toInterfaceSlice(append(jpSorted, sgSorted...))
+		case "延迟最低":
+			cfg.ProxyGroup[i]["proxies"] = toInterfaceSlice(jpSorted)
+		}
+	}
+
+	return nil
+}
+
+func toInterfaceSlice(names []string) []interface{} {
+	result := make([]interface{}, len(names))
+	for i, n := range names {
+		result[i] = n
+	}
+	return result
+}
+
+type streamingProxyNames struct {
+	jp []string
+	sg []string
+}
+
+func collectStreamingJPSG(proxies []map[string]interface{}) streamingProxyNames {
+	infoPatterns := []string{"剩余流量", "套餐到期", "只有新加坡", "直连地址", "TG群", "邀请好友"}
+	result := streamingProxyNames{}
+
+	for _, p := range proxies {
+		name, _ := p["name"].(string)
+		if name == "" {
+			continue
+		}
+
+		if !strings.Contains(name, "流媒体") {
+			continue
+		}
+
+		skip := false
+		for _, pattern := range infoPatterns {
+			if strings.Contains(name, pattern) {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+
+		if strings.Contains(name, "日本") {
+			result.jp = append(result.jp, name)
+		} else if strings.Contains(name, "新加坡") {
+			result.sg = append(result.sg, name)
+		}
+	}
+
+	return result
+}
+
+func sortDirectFirst(names []string) []string {
+	direct := make([]string, 0)
+	transit := make([]string, 0)
+	rest := make([]string, 0)
+
+	for _, n := range names {
+		switch {
+		case strings.Contains(n, "直连"):
+			direct = append(direct, n)
+		case strings.Contains(n, "中转"):
+			transit = append(transit, n)
+		default:
+			rest = append(rest, n)
+		}
+	}
+
+	sort.Strings(direct)
+	sort.Strings(transit)
+	sort.Strings(rest)
+
+	return append(append(direct, transit...), rest...)
 }
 
 func patchDns(cfg *config.RawConfig, _ string) error {
