@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/dlclark/regexp2 v1.12.0
+	github.com/dop251/goja v0.0.0-20250625173535-db1a3b6a7e80
 	github.com/metacubex/mihomo v1.7.0
 	golang.org/x/sync v0.11.0
 )

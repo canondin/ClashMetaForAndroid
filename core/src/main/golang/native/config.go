@@ -60,3 +60,13 @@ func writeOverride(slot C.int, content C.c_string) {
 func clearOverride(slot C.int) {
 	config.ClearOverride(config.OverrideSlot(slot))
 }
+
+//export readScript
+func readScript(profilePath C.c_string) *C.char {
+	return C.CString(config.ReadScript(C.GoString(profilePath)))
+}
+
+//export writeScript
+func writeScript(profilePath C.c_string, content C.c_string) {
+	config.WriteScript(C.GoString(profilePath), C.GoString(content))
+}
