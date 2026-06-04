@@ -211,6 +211,14 @@ object Clash {
         Bridge.nativeClearOverride(slot.ordinal)
     }
 
+    fun readScript(profilePath: String): String {
+        return Bridge.nativeReadScript(profilePath)
+    }
+
+    fun writeScript(profilePath: String, content: String) {
+        Bridge.nativeWriteScript(profilePath, content)
+    }
+
     fun queryConfiguration(): UiConfiguration {
         return Json.Default.decodeFromString(
             UiConfiguration.serializer(),

@@ -124,3 +124,13 @@ func verityPublicKeys(publicKeys C.c_string) C.int {
 
 	return 1
 }
+
+//export readScript
+func readScript(profilePath C.c_string) *C.char {
+	return C.CString(config.ReadScript(C.GoString(profilePath)))
+}
+
+//export writeScript
+func writeScript(profilePath C.c_string, content C.c_string) {
+	config.WriteScript(C.GoString(profilePath), C.GoString(content))
+}
