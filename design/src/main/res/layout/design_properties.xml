@@ -11,6 +11,9 @@
         <variable
             name="processing"
             type="boolean" />
+        <variable
+            name="script"
+            type="String" />
 
         <import type="com.github.kr328.clash.service.model.Profile.Type" />
         <import type="android.view.View" />
@@ -96,6 +99,15 @@
                     app:icon="@drawable/ic_outline_folder"
                     app:subtext="@string/browse_configuration_providers"
                     app:text="@string/browse_files" />
+
+                <com.github.kr328.clash.design.view.ActionLabel
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginVertical="@dimen/properties_element_margin_vertical"
+                    android:onClick="@{() -> self.editScript(script)}"
+                    app:icon="@drawable/ic_outline_article"
+                    app:subtext="@string/extension_script_desc"
+                    app:text="@string/extension_script" />
             </LinearLayout>
         </com.github.kr328.clash.design.view.ObservableScrollView>
 

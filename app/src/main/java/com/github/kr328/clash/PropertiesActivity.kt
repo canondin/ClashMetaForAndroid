@@ -13,6 +13,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import com.github.kr328.clash.design.R
+import java.io.File
 
 class PropertiesActivity : BaseActivity<PropertiesDesign>() {
     private var canceled: Boolean = false
@@ -27,6 +28,10 @@ class PropertiesActivity : BaseActivity<PropertiesDesign>() {
         original = withProfile { queryByUUID(uuid) } ?: return finish()
 
         design.profile = original
+
+        // Load extension script
+        val scriptFile = File(getProfileDir(uuid), "script.js")
+        design.script = if (scriptFile.exists()) scriptFile.readText() else ""
 
         setContentDesign(design)
 
@@ -62,6 +67,12 @@ class PropertiesActivity : BaseActivity<PropertiesDesign>() {
                         }
                         PropertiesDesign.Request.Commit -> {
                             design.verifyAndCommit()
+                        }
+                        is PropertiesDesign.Request.SaveScript -> {
+                            val dir = getProfileDir(uuid)
+                            dir.mkdirs()
+                            File(dir, "script.js").writeText(it.content)
+                            design.script = it.content
                         }
                     }
                 }
@@ -112,5 +123,9 @@ class PropertiesActivity : BaseActivity<PropertiesDesign>() {
                 }
             }
         }
+    }
+
+    private fun getProfileDir(uuid: java.util.UUID): File {
+        return filesDir.resolve("imported").resolve(uuid.toString())
     }
 }

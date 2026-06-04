@@ -5,6 +5,7 @@ import android.view.View
 import com.github.kr328.clash.core.model.FetchStatus
 import com.github.kr328.clash.design.databinding.DesignPropertiesBinding
 import com.github.kr328.clash.design.dialog.ModelProgressBarConfigure
+import com.github.kr328.clash.design.dialog.requestModelCodeInput
 import com.github.kr328.clash.design.dialog.requestModelTextInput
 import com.github.kr328.clash.design.dialog.withModelProgressBar
 import com.github.kr328.clash.design.util.*
@@ -21,6 +22,7 @@ class PropertiesDesign(context: Context) : Design<PropertiesDesign.Request>(cont
     sealed class Request {
         object Commit : Request()
         object BrowseFiles : Request()
+        data class SaveScript(val content: String) : Request()
     }
 
     private val binding = DesignPropertiesBinding
@@ -37,6 +39,12 @@ class PropertiesDesign(context: Context) : Design<PropertiesDesign.Request>(cont
 
     val progressing: Boolean
         get() = binding.processing
+
+    var script: String
+        get() = binding.script ?: ""
+        set(value) {
+            binding.script = value
+        }
 
     suspend fun withProcessing(executeTask: suspend (suspend (FetchStatus) -> Unit) -> Unit) {
         try {
@@ -147,6 +155,19 @@ class PropertiesDesign(context: Context) : Design<PropertiesDesign.Request>(cont
 
     fun requestBrowseFiles() {
         requests.trySend(Request.BrowseFiles)
+    }
+
+    fun editScript(currentScript: String) {
+        launch {
+            val result = context.requestModelCodeInput(
+                initial = currentScript,
+                title = context.getText(R.string.extension_script),
+                hint = "function main(config) { return config; }",
+            )
+            if (result != currentScript) {
+                requests.trySend(Request.SaveScript(result))
+            }
+        }
     }
 
     private fun ModelProgressBarConfigure.applyFrom(status: FetchStatus) {

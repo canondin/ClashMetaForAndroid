@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.appcompat.app.AlertDialog
 import androidx.core.widget.doOnTextChanged
 import com.github.kr328.clash.design.R
+import com.github.kr328.clash.design.databinding.DialogCodeFieldBinding
 import com.github.kr328.clash.design.databinding.DialogTextFieldBinding
 import com.github.kr328.clash.design.util.*
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -87,6 +88,51 @@ suspend fun Context.requestModelTextInput(
 
                 setSelection(0, initial?.length ?: 0)
 
+                requestTextInput()
+            }
+        }
+
+        dialog.show()
+    }
+}
+
+suspend fun Context.requestModelCodeInput(
+    initial: String,
+    title: CharSequence,
+    hint: CharSequence? = null,
+): String {
+    return suspendCancellableCoroutine {
+        val binding = DialogCodeFieldBinding
+            .inflate(layoutInflater, this.root, false)
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setView(binding.root)
+            .setCancelable(true)
+            .setPositiveButton(R.string.save) { _, _ ->
+                it.resume(binding.textField.text?.toString() ?: "")
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> }
+            .setNeutralButton(R.string.reset) { _, _ ->
+                it.resume("")
+            }
+            .setOnDismissListener { _ ->
+                if (!it.isCompleted)
+                    it.resume(initial)
+            }
+            .create()
+
+        it.invokeOnCancellation {
+            dialog.dismiss()
+        }
+
+        dialog.setOnShowListener {
+            if (hint != null)
+                binding.textLayout.hint = hint
+
+            binding.textField.apply {
+                setText(initial)
+                setSelection(0, initial.length)
                 requestTextInput()
             }
         }
