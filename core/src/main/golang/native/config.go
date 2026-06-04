@@ -70,3 +70,14 @@ func readScript(profilePath C.c_string) *C.char {
 func writeScript(profilePath C.c_string, content C.c_string) {
 	config.WriteScript(C.GoString(profilePath), C.GoString(content))
 }
+
+//export setAgeSecretKey
+func setAgeSecretKey(key C.c_string) {
+	if key == nil {
+		config.SetGlobalSecretKeys()
+		return
+	}
+
+	k := C.GoString(key)
+	config.SetGlobalSecretKeys(k)
+}
