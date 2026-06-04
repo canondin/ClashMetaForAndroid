@@ -1,10 +1,10 @@
 module cfa
 
-go 1.20
+go 1.25
 
 require (
 	github.com/dlclark/regexp2 v1.12.0
-	github.com/dop251/goja v0.0.0-20250625173535-db1a3b6a7e80
+	github.com/dop251/goja v0.0.0-20260603143327-1f200ca63355
 	github.com/metacubex/mihomo v1.7.0
 	golang.org/x/sync v0.11.0
 )
@@ -21,6 +21,7 @@ require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/coder/websocket v1.8.12 // indirect
 	github.com/coreos/go-iptables v0.8.0 // indirect
+	github.com/dlclark/regexp2/v2 v2.1.1 // indirect
 	github.com/dunglas/httpsfv v1.0.2 // indirect
 	github.com/enfein/mieru/v3 v3.33.0 // indirect
 	github.com/ericlagergren/aegis v0.0.0-20250325060835-cd0defd64358 // indirect
@@ -31,6 +32,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/gaukas/godicttls v0.0.4 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.4.0 // indirect
