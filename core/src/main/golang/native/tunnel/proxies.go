@@ -165,6 +165,30 @@ func PatchSelector(selector, name string) bool {
 	return true
 }
 
+// pickBestTestURL selects the test URL with the best (lowest non-zero) delay
+// from ExtraDelayHistories. Falls back to DefaultTestURL if none available.
+func pickBestTestURL(p C.Proxy) string {
+	bestURL := ""
+	bestDelay := uint16(0)
+	for k := range p.ExtraDelayHistories() {
+		if len(k) == 0 {
+			continue
+		}
+		d := p.LastDelayForTestUrl(k)
+		if d == 0 || d == 0xffff {
+			continue
+		}
+		if bestURL == "" || d < bestDelay {
+			bestURL = k
+			bestDelay = d
+		}
+	}
+	if bestURL != "" {
+		return bestURL
+	}
+	return C.DefaultTestURL
+}
+
 func convertProxies(proxies []C.Proxy, uiSubtitlePattern *regexp2.Regexp) []*Proxy {
 	result := make([]*Proxy, 0, 128)
 
@@ -183,13 +207,7 @@ func convertProxies(proxies []C.Proxy, uiSubtitlePattern *regexp2.Regexp) []*Pro
 				}
 			}
 		}
-		testURL := "https://www.gstatic.com/generate_204"
-		for k := range p.ExtraDelayHistories() {
-			if len(k) > 0 {
-				testURL = k
-				break
-			}
-		}
+testURL := pickBestTestURL(p)
 		_, isGroup := p.Adapter().(outboundgroup.ProxyGroup)
 
 		result = append(result, &Proxy{
@@ -224,13 +242,7 @@ func collectProviders(providers []provider.ProxyProvider, uiSubtitlePattern *reg
 				}
 			}
 
-			testURL := "https://www.gstatic.com/generate_204"
-			for k := range px.ExtraDelayHistories() {
-				if len(k) > 0 {
-					testURL = k
-					break
-				}
-			}
+testURL := pickBestTestURL(px)
 			_, isGroup := px.Adapter().(outboundgroup.ProxyGroup)
 
 			result = append(result, &Proxy{
