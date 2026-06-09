@@ -31,6 +31,9 @@ jobs:
         with:
           go-download-base-url: 'https://github.com/MetaCubeX/go/releases/download/build'
           go-version: '1.26'
+          cache-dependency-path: |
+            core/src/main/golang/go.sum
+            core/src/foss/golang/go.sum
 
       - name: Apply Patches
         run: |
@@ -42,7 +45,7 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('core/src/main/golang/go.sum', 'core/src/foss/golang/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
 
