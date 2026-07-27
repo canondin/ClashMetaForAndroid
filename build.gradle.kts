@@ -7,9 +7,6 @@ import java.util.*
 
 buildscript {
     repositories {
-        maven("https://maven.aliyun.com/repository/central")
-        maven("https://maven.aliyun.com/repository/google")
-        maven("https://maven.aliyun.com/repository/gradle-plugin")
         mavenCentral()
         google()
         maven("https://raw.githubusercontent.com/MetaCubeX/maven-backup/main/releases")
@@ -25,9 +22,6 @@ buildscript {
 
 subprojects {
     repositories {
-        maven("https://maven.aliyun.com/repository/central")
-        maven("https://maven.aliyun.com/repository/google")
-        maven("https://maven.aliyun.com/repository/gradle-plugin")
         mavenCentral()
         google()
         maven("https://raw.githubusercontent.com/MetaCubeX/maven-backup/main/releases")
@@ -169,6 +163,7 @@ subprojects {
             named("release") {
                 isMinifyEnabled = isApp
                 isShrinkResources = isApp
+                isDebuggable = false
                 signingConfig = signingConfigs.findByName("release") ?: signingConfigs["debug"]
                 proguardFiles(
                     getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -176,6 +171,7 @@ subprojects {
                 )
             }
             named("debug") {
+                isDebuggable = true
                 versionNameSuffix = ".debug"
             }
         }
