@@ -126,6 +126,15 @@ class PropertiesActivity : BaseActivity<PropertiesDesign>() {
     }
 
     private fun getProfileDir(uuid: java.util.UUID): File {
+        // The active editing directory is `pending/{uuid}` while a Profile is
+        // being created or edited; commit copies pending -> processing ->
+        // imported. Writing the script to `imported` directly loses it on the
+        // next commit because imported is deleted and rebuilt from processing.
+        // Prefer pending so the script travels alongside config.yaml.
+        val pendingDir = filesDir.resolve("pending").resolve(uuid.toString())
+        if (pendingDir.exists())
+            return pendingDir
+
         return filesDir.resolve("imported").resolve(uuid.toString())
     }
 }
