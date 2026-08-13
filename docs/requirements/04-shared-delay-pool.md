@@ -392,6 +392,158 @@ result := convertProxies(proxies, groupTestURL, uiSubtitlePattern)
 4. **方案 C 的探测去重 cache 是否需要持久化**？目前进程内即可，订阅刷新后 cache 失效。
 5. **mihomo 上游 script 类型组何时合入**？本仓库是否需要单独 cherry-pick？
 
+## 核心修改链路（第二步实施前复核）
+
+本节用于先判断“改完后能否达到目的”。本次第二步不改变用户脚本，也不把 `script` 引入内核；核心链路是：
+
+```text
+配置文件
+  └─ config.parseProxies
+       └─ 读取 skip-recent-probe
+            └─ provider.SetProbeDedupWindow(window)
+
+用户点击组测速
+  └─ Clash.healthCheck(group)
+       └─ tunnel.HealthCheck(group)
+            └─ provider.HealthCheck()
+                 └─ HealthCheck.check()
+                      ├─ execute(default URL)
+                      └─ execute(extra URLs)
+                           └─ 对每个 (proxy, url, expectedStatus)
+                                ├─ probeCache 未命中 → 真正调用 p.URLTest()
+                                │                    └─ 写入 p.extra[url]
+                                └─ probeCache 命中 → 跳过探测，直接复用已有延迟历史
+```
+
+### 1. 现有链路：为什么同节点跨组会得到不同结果
+
+```text
+节点 P1 被两个组引用
+
+  Group A: 新加坡
+    URL = u1
+      └─ Provider A.HealthCheck.execute(u1, [P1, P2])
+           └─ p1.URLTest(u1) → P1.extra[u1] = 85ms
+
+  Group B: 日本
+    URL = u2
+      └─ Provider B.HealthCheck.execute(u2, [P1, P3])
+           └─ p1.URLTest(u2) → P1.extra[u2] = 120ms
+
+  UI 查询 Group A
+    └─ pickBestTestURL(P1) / 或组 URL 查询
+         └─ 显示 P1.extra[u1] = 85ms
+
+  UI 查询 Group B
+    └─ 查询 P1.extra[u2] = 120ms
+         └─ 显示 P1 = 120ms
+```
+
+因此，**不同组使用不同 `url` 时，延迟不一致是由 URL 分桶本身决定的**，不是 UI 排序造成的。相同节点相同 URL 时，理论上会共享同一桶；不同 URL 不可能通过 Provider 去重变成同一份数值。
+
+### 2. 探测去重后的链路
+
+`skip-recent-probe: 600` 生效时，cache key 为：
+
+```text
+proxy.Name + "\x00" + url + "\x00" + expectedStatus
+```
+
+```text
+第一次：Group A / u1
+  P1: cache miss
+    └─ URLTest(P1, u1) → extra[u1] = 85ms → cache 记录 t0
+
+  P2: cache miss
+    └─ URLTest(P2, u1) → extra[u1] = 92ms → cache 记录 t0
+
+第二次：Group A / u1（t0 + 300 秒）
+  P1: cache hit，且 t0 + 300 < t0 + 600
+    └─ skip，不产生新的 URLTest
+
+  P2: cache hit，且 t0 + 300 < t0 + 600
+    └─ skip，不产生新的 URLTest
+
+第三次：Group A / u1（t0 + 601 秒）
+  P1: cache miss
+    └─ URLTest(P1, u1) → extra[u1] = 最新值 → cache 记录 t1
+```
+
+### 3. 本次能解决什么、不能解决什么
+
+| 问题 | 探测去重是否解决 | 原因 |
+|---|---:|---|
+| 同组重复 ticker 在窗口内重复探测 | ✅ | 同 `(proxy,url,expectedStatus)` 命中 cache |
+| 多组恰好使用相同 URL 时重复探测 | ✅ | 包级 cache 跨 `HealthCheck` 实例共享 |
+| 不同 `url` 桶被重复探测 | ❌ | key 不同，必须分别测速 |
+| 不同组因 URL 不同显示不同延迟 | ❌ | UI 查询的是不同 `extra[url]` |
+| 不同 `expectedStatus` 的错误探测 | ❌ | key 包含 expectedStatus，不复用结果 |
+| 探测结果在不同组之间同步 | ⚠️ 仅相同 URL/状态码 | 底层延迟历史按 URL 分桶 |
+
+### 4. 要达到“所有组同一节点数值完全一致”，还需要的必要链路
+
+必须在后续方案中再增加“统一测速来源”：
+
+```text
+所有组（延迟最低 / 新加坡 / 日本 / 自动选择）
+  └─ 统一指向同一个测速 URL
+       └─ 同一 HealthCheck 或共享 probe cache
+            └─ p1.URLTest(u_shared)
+                 └─ P1.extra[u_shared]
+                      └─ 所有组通过 u_shared 查询延迟
+```
+
+可选实施方式：
+
+1. **配置层 URL 归一（Layer 1）**：开启统一开关后，让各组使用同一个 `shared-test-url`；实现简单，但要明确它会改变用户显式 `url` 的语义。
+2. **真正的共享 HealthCheck**：构造一个全局 provider/URLTest 池，各组只引用池，不在 `proxies` 中重复列节点；这是最符合“单次测速、更新所有组”的模型。
+3. **持久化延迟快照**：由一个统一测速任务完成后把同一 `DelayHistory` 复制到各组使用的桶；需要改变现有数据模型，复杂度最高。
+
+本次先实施的是第 2 步中的**Provider 间探测去重**，它解决“测得太多、不同时间窗口造成抖动”，但不宣称单独解决不同 URL 桶的显示差异。
+
+### 5. 关键代码位置
+
+| 链路环节 | 文件/位置 | 作用 |
+|---|---|---|
+| 配置文件解析 | `core/src/foss/golang/clash/config/config.go` | 读取 `skip-recent-probe` |
+| 真正发起探测 | `core/src/foss/golang/clash/adapter/provider/healthcheck.go:150-189` | 每个 proxy/URL 调 `URLTest` |
+| 同实例防重入 | `healthcheck.go:128-147` | 1 秒内阻止同一 HealthCheck 并发重复执行 |
+| 延迟结果分桶 | `core/src/foss/golang/clash/adapter/adapter.go:38,166-198` | 按 URL 保存 `extra[url]` |
+| 组内最低节点选择 | `core/src/foss/golang/clash/adapter/outboundgroup/urltest.go:103-149` | 读取组 URL 的 alive/delay |
+| UI 延迟显示 | `core/src/main/golang/native/tunnel/proxies.go:168-223` | 选择历史桶并回传 UI |
+
+### 6. 配置建议
+
+```yaml
+# 开启 10 分钟窗口的同节点同 URL 探测去重
+skip-recent-probe: 600
+
+# 手机端建议结合组自身 interval，避免测速过于频繁
+# url-test 组继续保留自己的 interval/lazy/tolerance
+```
+
+默认值必须为 `0`，这样未配置该字段的用户行为完全不变；只有明确设置 `skip-recent-probe` 后才启用去重窗口。
+
+### 7. 验收链路（可据此判断目标是否达成）
+
+```text
+A. 开启 skip-recent-probe=600
+B. 构造两个同 URL、不同 HealthCheck 的组
+C. 分别触发两次 healthCheck
+D. 统计每个 proxy 的 URLTest 调用次数
+E. 预期第二次（窗口内）调用次数不再增加
+F. 读取 P1.LastDelayForTestUrl(u)
+G. 预期得到同一历史桶的最近有效延迟
+```
+
+必须额外验证：
+
+- 同 URL：去重生效，结果来自同一 `extra[url]` 桶。
+- 不同 URL：允许各自探测，不承诺数值相同。
+- 不同 expected status：允许各自探测，不复用结果。
+- `skip-recent-probe=0`：不改变原有测速行为。
+- cache 清理后：能够重新执行探测并刷新延迟历史。
+
 ## 相关文件
 
 - 用户脚本：`script.js`（Profile 配置目录）
