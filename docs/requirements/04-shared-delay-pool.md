@@ -544,6 +544,64 @@ G. 预期得到同一历史桶的最近有效延迟
 - `skip-recent-probe=0`：不改变原有测速行为。
 - cache 清理后：能够重新执行探测并刷新延迟历史。
 
+## 实施记录
+
+### 第一阶段：Provider 探测去重（已完成）
+
+落地位置：mihomo submodule（`core/src/foss/golang/clash/`）
+
+**新增文件**
+
+- `adapter/provider/healthcheck_dedup.go`
+  - `probeCache`：包级 `xsync.Map[string, time.Time]`，跨所有 HealthCheck 共享
+  - `probeDedupWindow`：`atomic.Int64`（纳秒），0 表示关闭
+  - `SetProbeDedupWindow(d)` / `ResetProbeCache()`：对外开关与重置
+  - `shouldSkipProbe(name, url, expectedStatus)` / `markProbeDone(...)`：判定与回写
+  - key 形态：`name + "\x00" + url + "\x00" + expectedStatus.String()`
+
+- `adapter/provider/healthcheck_dedup_test.go`
+  - 9 个测试，覆盖：默认关闭、窗口内跳过、跨实例去重、不同 url/proxy/status 不跳过、窗口过期、cache 重置、execute() 端到端
+
+**修改文件**
+
+- `adapter/provider/healthcheck.go`：`execute()` 在 `b.Go` 前调 `shouldSkipProbe`（命中则 continue），在 `b.Go` 内 `URLTest` 后调 `markProbeDone`；跳过时打 debug 日志
+- `config/config.go`：`RawConfig` 新增 `SkipRecentProbe uint16 yaml:"skip-recent-probe"`；`parseProxies` 末尾 `ResetProbeCache()` + `SetProbeDedupWindow(cfg.SkipRecentProbe * time.Second)`
+
+**行为说明（实测确认）**
+
+- 探测无论成功或失败都会 `markProbeDone`：死节点在窗口内不会被多个组反复重测（符合"减少冗余探测"目标）
+- 同一 HealthCheck 实例的 `check()` 受 `singleDo`（1 秒）额外约束，与探测去重是两层独立机制
+- `parseProxies` 每次加载都会 `ResetProbeCache()`，避免旧节点的 cache 抑制新同名节点
+
+**验证**
+
+```
+go test ./adapter/provider/...  PASS (9/9，含 -race)
+go test ./adapter/...           PASS
+go build ./config/...           PASS
+go vet ./adapter/provider/...   PASS
+:core:externalGolangBuildAlphaDebugArm64V8a   BUILD SUCCESSFUL
+:core:assembleAlphaDebug                       BUILD SUCCESSFUL
+```
+
+**配置用法**
+
+```yaml
+# 0 或缺省：保持原行为
+skip-recent-probe: 0
+
+# 10 分钟窗口（桌面端推荐）
+skip-recent-probe: 600
+
+# 4 小时窗口（手机端节流）
+skip-recent-probe: 14400
+```
+
+**待办**
+
+- submodule 改动当前为本地 detached 提交（`12119ace`），未推送。需确定 mihomo fork 策略后转为可追踪的远程分支。
+- 若后续要达成"不同 URL 也数值一致"，仍需第二阶段 URL 归一（Layer 1）或共享 HealthCheck，本阶段不涉及。
+
 ## 相关文件
 
 - 用户脚本：`script.js`（Profile 配置目录）
