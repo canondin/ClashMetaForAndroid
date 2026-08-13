@@ -599,8 +599,35 @@ skip-recent-probe: 14400
 
 **待办**
 
-- submodule 改动当前为本地 detached 提交（`12119ace`），未推送。需确定 mihomo fork 策略后转为可追踪的远程分支。
+- ~~submodule 改动当前为本地 detached 提交（`12119ace`），未推送。~~ **已完成**：fork 到 `canondin/mihomo`，分支 `feature/skip-recent-probe`，submodule 已切到该分支。
 - 若后续要达成"不同 URL 也数值一致"，仍需第二阶段 URL 归一（Layer 1）或共享 HealthCheck，本阶段不涉及。
+
+### submodule fork 工作流（mihomo 本地补丁）
+
+submodule 保留两个 remote：
+
+| remote | 仓库 | 用途 |
+|---|---|---|
+| `origin` | `MetaCubeX/mihomo`（上游，只读） | 拉取最新 Alpha，跟随上游 |
+| `fork` | `canondin/mihomo`（个人 fork） | 推送本地补丁分支 |
+
+补丁分支：`feature/skip-recent-probe`（基于上游 `origin/Alpha`，含 `12119ace`）
+
+**跟随上游同步 Alpha 的流程**
+
+```bash
+cd core/src/foss/golang/clash
+git fetch origin
+git rebase origin/Alpha              # 把补丁 rebase 到最新 Alpha
+go test ./adapter/provider/...        # 验证
+git push fork feature/skip-recent-probe --force-with-lease
+cd -                                  # 回到项目根
+# foss / main 各跑一次 go mod tidy
+git add core/src/foss/golang/clash core/src/foss/golang/go.mod core/src/foss/golang/go.sum core/src/main/golang/go.mod core/src/main/golang/go.sum
+git commit -m "build(core): sync mihomo Alpha to <commit>"
+```
+
+注意：`git submodule update --remote` 会用 `.gitmodules` 的 `branch = Alpha` 从 `origin`（上游）取最新，会**脱离补丁分支**。本仓库不要对该 submodule 用 `--remote`，改用上面的 rebase 流程。
 
 ## 相关文件
 
