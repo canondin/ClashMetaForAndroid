@@ -78,3 +78,25 @@ skip-recent-probe: 0      # 缺省，保持原行为
 - 探测去重仅对**同 URL**生效；不同 URL 的桶各自独立探测（设计如此）
 - 此 APK 为 debug 版，会覆盖现有应用（profile 数据保留）
 - submodule 补丁位于 `canondin/mihomo:feature/skip-recent-probe`，跟随上游需走 rebase 流程
+
+## 签名与安装（重要）
+
+本次构建的是 **alpha debug** 变体，使用本机 debug.keystore 签名：
+
+- debug.keystore 路径：`~/.android/debug.keystore`（本机生成于 2026-05-28）
+- APK 签名 SHA256：`A5:92:25:E0:E9:C3:E8:2B:30:36:5E:29:AC:5C:9D:A1:F1:C7:0D:11:2F:66:46:0F:BC:7B:BA:1C:19:BE:D0:45`
+
+### 为何首次无法更新安装
+
+Android 的 debug 签名是**每台机器各自生成**的（密码固定 `android`，但密钥对不同）。手机上若已装由**其他机器/CI** 构建的 debug 版，签名不一致 → Android 拒绝作为更新安装。
+
+### 安装方式
+
+- **全新安装**：先卸载手机现有版本，再装本 APK。无签名校验，必定成功。代价：profile / script.js 数据清除。
+- **更新安装**：仅当手机现有版本也是由**同一台机器** debug.keystore 签名时可直接更新。
+
+### 长期建议
+
+- 始终在本机构建 debug → debug.keystore 固定 → 以后可直接更新安装。
+- 若要跨机器一致签名，需用 `release.keystore` + `signing.properties`（`signing.properties` 被 gitignore，含 3 个密码；构建 release 变体）。
+- APK 完整性已校验：源文件与 OneDrive 副本 SHA256 一致（`b5145a90...`），排除传输损坏。
