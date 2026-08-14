@@ -65,13 +65,18 @@ c66bf737 build(core): sync mihomo Alpha to 7ee0b05b
 
 ## 使用方法
 
-profile 配置顶层加：
+**探测去重默认开启（300 秒窗口），无需任何配置。**
+
+只要扩展脚本 `script.js` 把所有 url-test/fallback 组的 `url` 统一成同一个字符串（用户现有脚本已这么做），跨组延迟就会一致——不需要在配置顶层加任何字段。
+
+可选调优（仅当需要改变默认行为时，在配置顶层加）：
 
 ```yaml
-skip-recent-probe: 600    # 10 分钟去重窗口（桌面端）
-skip-recent-probe: 14400  # 4 小时（手机端节流）
-skip-recent-probe: 0      # 缺省，保持原行为
+skip-recent-probe: 600    # 放大到 10 分钟窗口
+skip-recent-probe: 1      # 实质关闭（1 秒窗口）
 ```
+
+> 设计说明：dedup 默认开启是因为扩展脚本只能改 `proxies`/`proxy-groups`，改不了顶层 general 字段。让 `skip-recent-probe` 缺省即生效，用户在手机端只需维护 script.js 即可。
 
 ## 已知限制
 
