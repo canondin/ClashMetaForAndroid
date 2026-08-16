@@ -55,6 +55,19 @@ git -C core/src/foss/golang/clash update-ref refs/remotes/origin/cmfa-pin "$SUB"
 先 `git cherry -v origin/<branch> HEAD` 确认本地提交是否只是远程已含内容的旧基线版本,
 是则直接 `git reset --hard origin/<branch>`;不要 merge / rebase(会产生重复补丁冲突)。
 
+## 当前状态与待办(2026-08-16)
+
+- **签名统一尚未落地**:`signing.properties` 目前两台机器(Windows 本机 / mac)都没有配置,
+  所有构建仍是 debug 回退签名。两台机器签名不同,跨机器互装依旧要卸载重装。
+  手机(SM-S9280)当前装的是 2026-08-16 Windows 本机构建的 release 包(本机 debug 签名,
+  订阅已通过深链恢复)。
+- 待办:
+  1. 创建 `signing.properties`(配合仓库内 `release.keystore`,三个密码项),放到两台机器仓库根目录;
+  2. 之后首次正式签名构建安装到手机时,因签名再次变更,仍需卸载重装一次(届时旧版为非
+     debuggable 的 release 包,不可 run-as 备份——卸载前先让用户从 App 配置页复制订阅链接,
+     token 属敏感信息,不入库;2026-08-16 会话的提取备份仅在 Windows 本机 /tmp/cmfa-backup);
+  3. 配置完成后更新本节状态。
+
 ## adb 无线安装流程
 
 1. 首次配对:手机 开发者选项 → 无线调试 → 使用配对码配对设备,然后
