@@ -98,7 +98,7 @@ func QueryProxyGroup(name string, sortMode SortMode, uiSubtitlePattern *regexp2.
 		return nil
 	}
 
-	proxies := convertProxies(g.Proxies(), uiSubtitlePattern)
+	proxies := convertProxies(g.Proxies(), resolveGroupTestURL(g), uiSubtitlePattern)
 	// 	proxies := collectProviders(g.Providers(), uiSubtitlePattern)
 
 	switch sortMode {
@@ -165,31 +165,33 @@ func PatchSelector(selector, name string) bool {
 	return true
 }
 
-// pickBestTestURL selects the test URL with the best (lowest non-zero) delay
-// from ExtraDelayHistories. Falls back to DefaultTestURL if none available.
-func pickBestTestURL(p C.Proxy) string {
-	bestURL := ""
-	bestDelay := uint16(0)
-	for k := range p.ExtraDelayHistories() {
-		if len(k) == 0 {
-			continue
+// resolveGroupTestURL returns the URL the group's health check actually uses:
+// the first provider-configured health-check URL, falling back to
+// DefaultTestURL (inline groups and providers without health-check config).
+func resolveGroupTestURL(g outboundgroup.ProxyGroup) string {
+	for _, pd := range g.Providers() {
+		if url := pd.HealthCheckURL(); url != "" {
+			return url
 		}
-		d := p.LastDelayForTestUrl(k)
-		if d == 0 || d == 0xffff {
-			continue
-		}
-		if bestURL == "" || d < bestDelay {
-			bestURL = k
-			bestDelay = d
-		}
-	}
-	if bestURL != "" {
-		return bestURL
 	}
 	return C.DefaultTestURL
 }
 
-func convertProxies(proxies []C.Proxy, uiSubtitlePattern *regexp2.Regexp) []*Proxy {
+// proxyTestURL picks which URL's delay history to display for p: the group's
+// own test URL when the proxy has any record under it, otherwise the only
+// other URL ever recorded (providers whose health check runs only registered
+// extra URLs), otherwise the group URL (renders as timeout).
+func proxyTestURL(p C.Proxy, groupURL string) string {
+	histories := p.ExtraDelayHistories()
+	if _, ok := histories[groupURL]; !ok && len(histories) == 1 {
+		for k := range histories {
+			return k
+		}
+	}
+	return groupURL
+}
+
+func convertProxies(proxies []C.Proxy, groupURL string, uiSubtitlePattern *regexp2.Regexp) []*Proxy {
 	result := make([]*Proxy, 0, 128)
 
 	for _, p := range proxies {
@@ -207,7 +209,7 @@ func convertProxies(proxies []C.Proxy, uiSubtitlePattern *regexp2.Regexp) []*Pro
 				}
 			}
 		}
-testURL := pickBestTestURL(p)
+		testURL := proxyTestURL(p, groupURL)
 		_, isGroup := p.Adapter().(outboundgroup.ProxyGroup)
 
 		result = append(result, &Proxy{
@@ -226,6 +228,10 @@ func collectProviders(providers []provider.ProxyProvider, uiSubtitlePattern *reg
 	result := make([]*Proxy, 0, 128)
 
 	for _, p := range providers {
+		groupURL := p.HealthCheckURL()
+		if groupURL == "" {
+			groupURL = C.DefaultTestURL
+		}
 		for _, px := range p.Proxies() {
 			name := px.Name()
 			title := name
@@ -242,7 +248,7 @@ func collectProviders(providers []provider.ProxyProvider, uiSubtitlePattern *reg
 				}
 			}
 
-testURL := pickBestTestURL(px)
+			testURL := proxyTestURL(px, groupURL)
 			_, isGroup := px.Adapter().(outboundgroup.ProxyGroup)
 
 			result = append(result, &Proxy{
