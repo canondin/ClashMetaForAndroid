@@ -27,13 +27,13 @@ class ServiceStore(context: Context) {
 
     var accessControlMode: AccessControlMode by store.enum(
         key = "access_control_mode",
-        defaultValue = AccessControlMode.AcceptAll,
+        defaultValue = AccessControlMode.DenySelected,
         values = AccessControlMode.values()
     )
 
     var accessControlPackages by store.stringSet(
         key = "access_control_packages",
-        defaultValue = emptySet()
+        defaultValue = DEFAULT_ACCESS_CONTROL_PACKAGES
     )
 
     var dnsHijacking by store.boolean(
@@ -65,4 +65,40 @@ class ServiceStore(context: Context) {
         key = "dynamic_notification",
         defaultValue = true
     )
+
+    companion object {
+        // Apps that should connect directly (bypass the VPN) unless the user changes the list
+        private val DEFAULT_ACCESS_CONTROL_PACKAGES = setOf(
+            "com.ss.android.ugc.aweme",
+            "cn.samsclub.app",
+            "com.tencent.wework",
+            "com.unionpay",
+            "com.tencent.mm",
+            "com.manmanbuy.bijia",
+            "com.hwabao.hbstockwarning",
+            "com.eastmoney.android.berlin",
+            "com.tencent.weread",
+            "com.tmri.app.main",
+            "com.szlanyou.nissaniov",
+            "com.hexin.plat.android",
+            "com.cmbc.cc.mbank",
+            "com.nocode.nutridecode",
+            "cn.com.cmbc.newmbank",
+            "com.citiccard.mobilebank",
+            "cn.gov.tax.its",
+            "com.chinamworld.main",
+            "com.chinamworld.bocmbci",
+            "com.cloudpower.netsale.activity",
+            "com.ss.android.ugc.lifeservices",
+            "cn.yingmi.qieman.hermione",
+            "cn.com.hzb.mobilebank.per",
+            "com.tencent.wetype",
+            "com.android.bankabc",
+            "cmb.pb",
+            "tv.danmaku.bili",
+            "com.blizzard.wtcg.hearthstone",
+            "com.smzdm.client.android",
+            "com.jingdong.app.mall",
+        )
+    }
 }
